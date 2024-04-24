@@ -1,22 +1,252 @@
 ---
-title: "Predictors of Energy in Golden Retrievers"
+title: "Predictors of Illness in Golden Retrievers"
 output: 
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
+    theme: yeti
+    source_code: embed
+runtime: shiny
 ---
 
-Embed code
-```{r setup, include=FALSE}
+```{r global, include = FALSE}
+library(here) # helps importing data on different devices
+library(dplyr) # pipe commands, data cleaning
+library(ggplot2) # plots
+library(lubridate) # converting to date type variable
+library(tidymodels) # modelling
+library(janitor)
 library(flexdashboard)
+library(shiny) # shiny dashboard
+library(vip) # variable importance plots
+library(forcats) # factors
+library(DT)
+
+# Import Data 
+# My data can be obtained by making an account on this website:
+# https://datacommons.morrisanimalfoundation.org/
+# The file names have not been changed, but I put all of the data into a 
+# folder called "DO_NOT_UPLOAD_DATA", so delete that if you don't have your 
+# data in a folder also called that
+
+# Age
+profile_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
+                             "dog_profile.csv"))
+
+# Activity, shade vs sun, etc., in a subfolder called "activity_lifestyle"
+# get rid of "activity_lifestyle" if you don't have your data in a folder
+# called that
+activity_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
+                              "activity_lifestyle", 
+                              "activity_overview.csv"))
+
+# Has energy score, excitability, trainability, dog rivalry, chasing
+# in a subfolder called "behavior" get rid of "behavior" if you don't have your 
+# data in a folder called that
+behavior_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
+                              "behavior", 
+                              "behavior_summary.csv"))
+
+conditions_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
+                               "conditions_summary.csv"))
+
+
+
+profile_tbl <- as_tibble(profile_data)
+activity_tbl <- as_tibble(activity_data)
+behavior_tbl <- as_tibble(behavior_data)
+conditions_tbl <- as_tibble(conditions_data)
+
 ```
+
+
+Sidebar {.sidebar}
+===========================================================
+
+<br>
+
+`r h3("Objective:")`
+`r h3("Predict whether a golden retriever will have an illness present based on selected inputs.")`
+
+<br>
+
+- - -
+
+<br>
+
+```{r cleaning}
+
+# Making a variable called "starting age" using birth date and enrolled date
+# lubridating all dates
+profile_w_age <- profile_tbl %>% 
+  mutate(birth_date_new = ym(birth_date),
+         enrolled_date_new = ym(enrolled_date),
+         starting_age = enrolled_date_new - birth_date_new) %>% 
+  select(subject_id, sex_status, starting_age, birth_date_new, enrolled_date_new)
+
+# Making characters into factors that are ordered specifically 
+activity_reordered <- activity_tbl %>% 
+  mutate(activity_level_reordered = fct(activity_level, 
+                                  c("",
+                                    "None",
+                                    "Little",
+                                    "Moderate",
+                                    "Very active")),
+         sun_exposure_duration_reordered = fct(sun_exposure_duration,
+                                               c("",
+                                                 "Less than 3 hours",
+                                                 "Between 3-8 hours",
+                                                 "Between 8-16 hours",
+                                                 "Between 9-16 hours",
+                                                 "More than 16 hours")),
+         sun_exposure_shade_access_reordered = fct(sun_exposure_shade_access,
+                                                   c("",
+                                                     "No access to full shade",
+                                                     "Access to full shade"))
+         ) %>% 
+  select(subject_id,
+         year_in_study,
+         activity_level_reordered, 
+         sun_exposure_duration_reordered,
+         sun_exposure_shade_access_reordered)
+
+
+# Just want presence of illness of any given year
+conditions <- conditions_tbl %>% 
+  filter(to_date == 0) %>%  # to date == 0 means that we are not including presence of sickness in previous years
+  select(subject_id,
+         year_in_study,
+         any)
+
+data_y_all <- full_join(profile_w_age, 
+                    activity_reordered, 
+                    by = "subject_id") %>% 
+  full_join(conditions,
+            by = c("subject_id", 
+                   "year_in_study"))
+
+```
+
+```{r year_input}
+# Year in Study as a reactive input
+sliderInput(
+  inputId = "year_input", 
+  label   = h4("Year in Study"),
+  value   = min(data_y_all$year_in_study),
+  min     = min(data_y_all$year_in_study), 
+  max     = max(data_y_all$year_in_study),
+  step = 1,
+  ticks = FALSE)
+
+ renderPrint(input$year_input)
+```
+
+```{r dataFiltered}
+# creating function golden_filtered(), which is reactive and lets the user change
+# what year's data they are looking at
+
+golden_filtered <- reactive({
+  data_y_all %>%
+  filter(year_in_study == input$year_input) # getting the datasets from specific years
+})
+
+renderPrint(dim(golden_filtered()))
+```
+
+
+```{r data_splitting}
+# Data splitting and re-sampling
+set.seed(123)
+
+splits <- reactive({
+  initial_split(golden_filtered(), strata = any)
+})
+
+
+golden_other <- reactive({
+  training(splits())
+})
+
+
+golden_test  <- reactive({
+  testing(splits())
+})
+
+# Create a validation set
+set.seed(234)
+prop.validation <- .20
+
+val_set <- reactive({
+  validation_split(golden_other(), 
+                   strata = any, 
+                   prop   = 1-prop.validation)
+})
+
+renderPrint(val_set())
+```
+
+
+
+Validation Summary
+===========================================================
+
+
+## Column {data-width="500"}
+
+### Data Splitting
+
+**Total Observations:**  
+`r reactive(dim(golden_filtered())[1] %>% scales::comma())`
+
+**Training Set:**  
+`r reactive(dim(golden_other())[1] %>% scales::comma())`
+
+**Validation Set:**  
+`r reactive((dim(golden_other())[1] * prop.validation) %>% scales::comma())`
+
+**Testing Set:**  
+`r reactive(dim(golden_test())[1] %>% scales::comma())`
+
+
+
+
+### Data Viewer
+
+```{r table}
+output$data_viewer <- DT::renderDataTable({
+golden_filtered() %>% 
+    slice(1:100) %>% 
+    datatable(options = list(searching = FALSE,
+                           pageLength = 50,
+                           lengthMenu = c(50, 100),
+                           scrollY = '250px',
+                           scrollX = '300px'),
+            style = "default")
+})
+
+DT::dataTableOutput(outputId = "data_viewer")
+```
+
 
 Column {data-width=650}
 -----------------------------------------------------------------------
 
-### Chart A
+### Different Model Parameter
 
-```{r}
+```{r create_model}
+lr_mod <- 
+  logistic_reg(mixture = 1, penalty = tune()) %>% 
+  set_engine("glmnet")
+```
+
+```{r create_recipe}
+
+lr_recipe_golden <- reactive({
+  recipe(any ~ sex_status + starting_age + activity_level_reordered + sun_exposure_duration_reordered + sun_exposure_shade_access_reordered, data = golden_other()) %>%  
+    step_dummy(all_nominal(), -all_outcomes()) %>% 
+    step_zv(all_predictors()) %>% 
+    step_normalize(all_predictors())
+})
 
 ```
 
