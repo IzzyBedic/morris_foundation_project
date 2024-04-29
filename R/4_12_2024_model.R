@@ -179,7 +179,11 @@ y0_tbl <- left_join(profile_y0,
                     by = "subject_id") %>% 
   left_join(conditions_y0,
             by = c("subject_id", 
-                   "year_in_study"))
+                   "year_in_study")) %>% 
+  filter(!is.na(any)) %>% 
+  mutate(any = as_factor(any),
+         starting_age = as.integer(starting_age)) %>% 
+  select(-birth_date_new, -enrolled_date_new)
   
 
 # Visualizing ------------------------------------------------------------------
@@ -229,39 +233,8 @@ y0_tbl %>%
   geom_boxplot()
   
 
-# Combining
 
 
-
-### LINES 188
-# DATA SPLITTING AND RESAMPLING -------------------------------------------
-
-set.seed(123)
-splits <- initial_split(hotels, strata = children)
-
-hotel_other <- training(splits)
-hotel_test  <- testing(splits)
-
-# training set proportions by children
-tabyl(hotel_other$children)
-
-# test set proportions by children
-tabyl(hotel_test$children)
-
-
-
-
-
-
-
-```{r create.workflow, eval = FALSE}
-lr_workflow_golden <- reactive({
-  workflow() %>% 
-    add_model(lr_mod_golden) %>% 
-    add_recipe(lr_recipe_golden())
-})
-
-```
 
 
 
