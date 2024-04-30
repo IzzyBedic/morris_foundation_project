@@ -28,6 +28,7 @@ library(ggplot2) # plots
 library(flexdashboard)
 library(shiny) # shiny dashboard
 library(DT)
+library(wesanderson)
 
 # Helper
 library(shinyjs)
@@ -298,8 +299,6 @@ checkboxGroupInput(
 )
 
 
-
-
 br()
 
 actionButton(inputId = "apply", label = "Apply Changes", icon = icon("play"))
@@ -329,8 +328,6 @@ observeEvent(eventExpr = input$reset, handlerExpr = {
   
 })
 
-renderPrint(input$year_input)
-renderPrint(input$model_variables)
 ```
 
 
@@ -521,8 +518,9 @@ output$case_plot <- renderPlot({
   lr_recipe_golden() %>%
   prep() %>%
   juice() %>%
-  ggplot(aes(any)) + 
-    geom_bar(fill = 'darkgreen')
+  ggplot(aes(any, fill = any)) + 
+    geom_bar() +
+    scale_fill_manual(values = wes_palette("Cavalcanti1"))
 })
 
 plotOutput(outputId = "case_plot")
@@ -541,7 +539,8 @@ output$conf_mat_plot_golden <- renderPlot({
     text(1,1,"You need to select variables for this plot to appear")
   } else{
   lr_conf_mat_golden() %>%
-    autoplot(type = "heatmap")
+    autoplot(type = "heatmap") 
+      
   }
 
 })
@@ -565,8 +564,8 @@ output$lr_auc_golden <- renderPlot({
   collect_predictions(parameters = lr_best_golden()) %>%
   roc_curve(any, .pred_0) %>%
   ggplot(aes(x = 1 - specificity, y = sensitivity)) +
-  geom_path(color = 'green') +
-  geom_abline(lty = 3, color = 'darkgreen') +
+  geom_path(color = wes_palette("Cavalcanti1", 1, type = "discrete")) +
+  geom_abline(lty = 3, color = wes_palette("Cavalcanti1", 1, type = "discrete")) +
   coord_equal() +
   theme_classic()
   }
@@ -595,8 +594,9 @@ output$vip_plot <- renderPlot({
   } else {
   lr_fit_golden() %>% 
   pull_workflow_fit() %>%
-  vip(num_features = 8) +
-    theme_light()
+  vip(num_features = 5, 
+      aesthetics = list(color = wes_palette("Cavalcanti1", 1, type = "continuous"), 
+                     fill = wes_palette("Cavalcanti1", 1, type = "continuous")))
   }
 })
 
