@@ -4,7 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
-    theme: yeti
+    theme: flatly
     source_code: embed
 runtime: shiny
 ---
@@ -12,20 +12,29 @@ runtime: shiny
 ```{r global, include = FALSE}
 
 #### NEED 4 MORE PREDICTORS A LA GUIDELINES, WILL BE BEHAVIOR ONCE CLEANED
+# Downloading and cleaning data packages
 library(here) # helps importing data on different devices
 library(dplyr) # pipe commands, data cleaning
-library(ggplot2) # plots
 library(lubridate) # converting to date type variable
+library(stringr) # str_ functions
+library(forcats) # factors
+
+# Modeling packages
 library(tidymodels) # modelling
-library(janitor)
+library(vip) # variable importance plots
+
+# Showcasing data packages
+library(ggplot2) # plots
 library(flexdashboard)
 library(shiny) # shiny dashboard
-library(vip) # variable importance plots
-library(forcats) # factors
 library(DT)
-library(shinyjs)
-library(stringr) # str_ functions
 
+# Helper
+library(shinyjs)
+```
+
+
+```{r downloading_data}
 # Import Data 
 # My data can be obtained by making an account on this website:
 # https://datacommons.morrisanimalfoundation.org/
@@ -44,6 +53,10 @@ activity_data <- read.csv(here("DO_NOT_UPLOAD_DATA",
                               "activity_lifestyle", 
                               "activity_overview.csv"))
 
+# Presence of illness
+conditions_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
+                               "conditions_summary.csv"))
+
 # Has energy score, excitability, trainability, dog rivalry, chasing
 # in a subfolder called "behavior" get rid of "behavior" if you don't have your 
 # data in a folder called that
@@ -51,19 +64,17 @@ behavior_data <- read.csv(here("DO_NOT_UPLOAD_DATA",
                               "behavior", 
                               "behavior_summary.csv"))
 
-conditions_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
-                               "conditions_summary.csv"))
-
-
-
+# Home environment
 environment_data <- read.csv(here("DO_NOT_UPLOAD_DATA", 
                                   "environment",
                                   "environment_conditions.csv"))
 
+
+# Converting all dataframes to tibbles
 profile_tbl <- as_tibble(profile_data)
 activity_tbl <- as_tibble(activity_data)
-behavior_tbl <- as_tibble(behavior_data)
 conditions_tbl <- as_tibble(conditions_data)
+behavior_tbl <- as_tibble(behavior_data)
 environment_tbl <- as_tibble(environment_data)
 ```
 
@@ -79,7 +90,7 @@ profile_w_age <- profile_tbl %>%
          sex = str_trim(as.character(str_extract_all(sex_status, " (.*)"))),
          neuter_spay_fact = as_factor(case_when(neuter_spay == "Intact" ~ 0,
                                       neuter_spay != "Intact" ~ 1))) %>% 
-  select(subject_id,
+  select(subject_id, # selecting only columns I am going to use
          neuter_spay_fact,
          sex,
          starting_age,
@@ -118,7 +129,7 @@ activity_reordered <- activity_tbl %>%
         "Access to full shade")
     )
   ) %>%
-  select(
+  select( # selecting only columns I need
     subject_id,
     year_in_study,
     activity_level_reordered,
@@ -135,10 +146,10 @@ conditions <- conditions_tbl %>%
   select(subject_id,
          year_in_study,
          any) %>%
-  drop_na(any) %>%
+  drop_na(any) %>% # need NO NAs for the model to work
   mutate(any = as_factor(any))
-
 ```
+
 
 ```{r cleaning_behavioral_data}
 # Behavioral indicators (scored out of 4, 0 means not a lot, 4 means severe/ a lot)
@@ -162,8 +173,7 @@ behavior_separation <- behavior_tbl %>%
     count_1_sep,
     count_2_sep,
     count_3_sep,
-    count_4_sep,
-    count_na_sep
+    count_4_sep
   )
 
 behavior_energy <- behavior_tbl %>%
@@ -181,23 +191,20 @@ behavior_energy <- behavior_tbl %>%
     count_1_energy,
     count_2_energy,
     count_3_energy,
-    count_4_energy,
-    count_na_energy)
-
+    count_4_energy)
 
 ```
 
 ```{r cleaning_environment_data}
+# Taking the variables I want to use (binary is there smoke, is there aerosols, has the dog been to the ER)
 environment_selected <- environment_tbl %>% 
   filter(to_date == 0) %>% 
-  mutate(hours_of_smoke_dbl = as.double(hours_of_smoke),
-         smoke_exposure_fact = as_factor(smoke_exposure),
+  mutate(smoke_exposure_fact = as_factor(smoke_exposure),
          poison_clinic_visit_fact = as_factor(poison_clinic_visit),
          use_aerosol_fact = as_factor(use_aerosol)) %>% 
   select(subject_id,
          year_in_study,
          smoke_exposure_fact,
-         hours_of_smoke_dbl,
          poison_clinic_visit_fact,
          use_aerosol_fact)
 ```
@@ -236,38 +243,18 @@ Sidebar {.sidebar}
 - - -
 
 ```{r function}
-
-# Adds all separation scores to the model if count_0_sep is checked.
-# Count_0_sep is checked when the user checks the box for separation anxiety
-# sep_add <- function (input) {
-#   if (str_detect(str_flatten(input, collapse = ", "), "count_0_sep")) {
-#     input <- c(
-#       input,
-#       "count_1_sep",
-#       "count_2_sep",
-#       "count_3_sep",
-#       "count_4_sep",
-#       "count_na_sep"
-#     )
-#     return(input)
-#   }
-#   else{
-#     return(input)
-#   }
-# }
-
-
 # adds all behavioral scores related to a topic to a list
 topic_add <- function (input, topic) {
-  if (str_detect(str_flatten(input, collapse = ", "), str_c("count_0", topic, sep = "_"))) {
-    input <- c(
+  if (str_detect(str_flatten(input, collapse = ", "),
+                 str_c("count_0", topic, sep = "_"))) {
+    input.new <- c(
       input,
       str_c("count_1", topic, sep = "_"),
       str_c("count_2", topic, sep = "_"),
       str_c("count_3", topic, sep = "_"),
-      str_c("count_4", topic, sep = "_"),
+      str_c("count_4", topic, sep = "_")
     )
-    return(input)
+    return(input.new)
   }
   else{
     return(input)
@@ -305,7 +292,6 @@ checkboxGroupInput(
     "does the dog have separation anxiety?" = "count_0_sep",
     "does the dog have high energy; do they act 'puppyish'?" = "count_0_energy",
     "does the dog get exposed to smoke?" = "smoke_exposure_fact",
-    "average hours per day of second hand smoke exposure in the last 12 months" = "hours_of_smoke_dbl",
     "has ingested poison or hazardous material requiring vet or emergency clinic visit?" = "poison_clinic_visit_fact",
     "exposed to aerosols in the home" = "use_aerosol_fact"),
   inline = FALSE
@@ -352,8 +338,6 @@ renderPrint(input$model_variables)
 # creating function golden_filtered(), which is reactive and lets the user change
 # what year's data they are looking at
 
-renderPrint(input$sep_list)
-
 golden_filtered <- eventReactive(
   eventExpr = input$apply,
   valueExpr = {
@@ -391,7 +375,7 @@ golden_test  <- reactive({
 
 # Create a validation set
 set.seed(234)
-prop.validation <- .30
+prop.validation <- .10
 
 val_set <- reactive({
   validation_split(golden_other(),
@@ -530,47 +514,18 @@ DT::dataTableOutput(outputId = "data_viewer")
 Column {data-width=650}
 -----------------------------------------------------------------------
 
-### Data Splitting
+### Case Imbalance Check
 
 ```{r, eval = TRUE}
 output$case_plot <- renderPlot({
   lr_recipe_golden() %>%
   prep() %>%
   juice() %>%
-  ggplot(aes(any)) + # run into errors with starting age
+  ggplot(aes(any)) + 
     geom_bar(fill = 'darkgreen')
 })
 
 plotOutput(outputId = "case_plot")
-```
-
-```{r prediction}
-
-```
-
-
-Predictor Metrics
-===========================================================
-
-Column {data-width=350}
------------------------------------------------------------------------
-
-### Numeric Predictors
-
-```{r}
-output$case_plot <- renderPlot({
-  golden_filtered() %>% 
-    select(is.numeric()) %>% 
-    ggplot() +
-    geom_histogram(aes()) +
-    facet_wrap()
-})
-```
-
-### Factor Predictors
-
-```{r}
-
 ```
 
 
@@ -579,21 +534,33 @@ Classification Results
 
 ### Confusion Matrix
 
-```{r}
+```{r confusion}
 output$conf_mat_plot_golden <- renderPlot({
+  if (length(golden_filtered()) < 3) {
+    plot(1,1,col="white")
+    text(1,1,"You need to select variables for this plot to appear")
+  } else{
   lr_conf_mat_golden() %>%
     autoplot(type = "heatmap")
+  }
 
 })
 
 plotOutput(outputId = "conf_mat_plot_golden")
+
+# Helped:
+# https://stackoverflow.com/questions/30047010/shiny-custom-warning-error-messages 
 ```
 
 
-### ROC AUC - why does it do this
+### ROC AUC
 
 ```{r rocauc}
 output$lr_auc_golden <- renderPlot({
+   if (length(golden_filtered()) < 3) {
+    plot(1,1,col="white")
+    text(1,1,"You need to select variables for this plot to appear")
+  } else{
   lr_tune_golden() %>%
   collect_predictions(parameters = lr_best_golden()) %>%
   roc_curve(any, .pred_0) %>%
@@ -602,6 +569,7 @@ output$lr_auc_golden <- renderPlot({
   geom_abline(lty = 3, color = 'darkgreen') +
   coord_equal() +
   theme_classic()
+  }
 })
 
 plotOutput(outputId = "lr_auc_golden")
@@ -609,5 +577,29 @@ plotOutput(outputId = "lr_auc_golden")
 
 renderPrint(lr_tune_golden()
             %>% collect_predictions(parameters = lr_best_golden()) )
+```
+
+Predictor Metrics
+===========================================================
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Variable Importance Plot
+
+```{r vip_plot}
+output$vip_plot <- renderPlot({ 
+   if (length(golden_filtered()) < 3) {
+    plot(1,1,col="white")
+    text(1,1,"You need to select variables for this plot to appear")
+  } else {
+  lr_fit_golden() %>% 
+  pull_workflow_fit() %>%
+  vip(num_features = 8) +
+    theme_light()
+  }
+})
+
+plotOutput(outputId = "vip_plot")
 ```
 

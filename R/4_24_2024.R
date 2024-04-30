@@ -129,11 +129,9 @@ data_y_all <- full_join(profile_w_age,
                    "year_in_study")) %>%
   na.omit()
 
-
 -------------------------------------------------------------------------------
   
-listy <- as.vector(c("sex (including spay or neuter status)" = "sex_status",
-           "age at start of study" = "starting_age",
+listy <- as.vector(c("age at start of study" = "starting_age",
            "activity level" = "activity_level_reordered",
            "sun exposure" = "sun_exposure_duration_reordered",
            "does the dog have access to shade?" = "sun_exposure_shade_access_reordered",
@@ -146,8 +144,7 @@ render <- function (input, topic) {
       str_c("count_1", topic, sep = "_"),
       str_c("count_2", topic, sep = "_"),
       str_c("count_3", topic, sep = "_"),
-      str_c("count_4", topic, sep = "_"),
-      str_c("count_na", topic, sep = "_")
+      str_c("count_4", topic, sep = "_")
     )
     return(input)
   }
@@ -287,10 +284,10 @@ renderPrint(lr_tune_golden()
             %>% collect_predictions(parameters = lr_best_golden()) )
 
 data <- data_y_all %>% 
-  select(where(is.numeric)) %>% 
+  select(where(is.factor)) %>% 
   pivot_longer(cols = everything(),
                names_to = "variable",
-               values_to = "value")
+               values_to = "factor")
 
 
 data %>% 
@@ -298,9 +295,3 @@ data %>%
   geom_histogram() +
   facet_wrap(facets = vars(variable), scales = "free_y")
 
-
-
-data %>% 
-  filter(variable == "count_0_energy") %>% 
-  ggplot(aes(value)) +
-  geom_histogram() 

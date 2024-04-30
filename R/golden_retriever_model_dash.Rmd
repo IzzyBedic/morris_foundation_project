@@ -265,7 +265,7 @@ topic_add <- function (input, topic) {
       str_c("count_1", topic, sep = "_"),
       str_c("count_2", topic, sep = "_"),
       str_c("count_3", topic, sep = "_"),
-      str_c("count_4", topic, sep = "_"),
+      str_c("count_4", topic, sep = "_")
     )
     return(input)
   }
@@ -351,8 +351,6 @@ renderPrint(input$model_variables)
 ```{r data_filtered}
 # creating function golden_filtered(), which is reactive and lets the user change
 # what year's data they are looking at
-
-renderPrint(input$sep_list)
 
 golden_filtered <- eventReactive(
   eventExpr = input$apply,
