@@ -129,6 +129,12 @@ data_y_all <- full_join(profile_w_age,
                    "year_in_study")) %>%
   na.omit()
 
+
+data_y_all %>% 
+  filter(year_in_study > 3) %>% 
+  mutate(year_in_study = as.factor(year_in_study)) %>% 
+  ggplot(aes(year_in_study, neuter_spay_fact)) +
+  geom_count()
 -------------------------------------------------------------------------------
   
 listy <- as.vector(c("age at start of study" = "starting_age",

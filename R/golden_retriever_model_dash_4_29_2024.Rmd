@@ -32,6 +32,7 @@ library(wesanderson)
 
 # Helper
 library(shinyjs)
+library(shinyWidgets)
 ```
 
 
@@ -280,7 +281,7 @@ sliderInput(
 br()
 
 # Letting a use choose which variables to include in the model
-checkboxGroupInput(
+awesomeCheckboxGroup(
   inputId = "model_variables",
   label = h5("Variables to Include in Model"),
   choices = c(
@@ -295,7 +296,8 @@ checkboxGroupInput(
     "does the dog get exposed to smoke?" = "smoke_exposure_fact",
     "has ingested poison or hazardous material requiring vet or emergency clinic visit?" = "poison_clinic_visit_fact",
     "exposed to aerosols in the home" = "use_aerosol_fact"),
-  inline = FALSE
+  inline = FALSE,
+  status = wes_palette("Cavalcanti1", 1)
 )
 
 
@@ -308,28 +310,29 @@ br()
 br()
 br()
 
+# there is something wrong with the click(), it is not getting rid of things
 observeEvent(eventExpr = input$reset, handlerExpr = {
   
+  # updates slider for year in study
   updateSliderInput(
     session = session,
     inputId = "year_input",
     value   = min(data_y_all$year_in_study))
   
-  #update if you figure out scoring!
-  updateCheckboxGroupInput(
+  # updates model variables
+  updateAwesomeCheckboxGroup(
     session = session,
     inputId = "model_variables",
     selected = character(0))
   
   # makes reset complete
   shinyjs::delay(ms = 300, expr = {
-    shinyjs::click(id ="apply")
-  })
+    shinyjs::click("apply")
+    }
+    )
   
 })
-
 ```
-
 
 ```{r data_filtered}
 # creating function golden_filtered(), which is reactive and lets the user change
@@ -342,10 +345,12 @@ golden_filtered <- eventReactive(
       select(any,
              year_in_study,
              topic_add(topic_add(input$model_variables, "sep"), "energy")) %>%
-      filter(year_in_study == input$year_input) # getting the datasets from specific years
+      filter(year_in_study == input$year_input) %>% # getting the datasets from specific years
+      select(-year_in_study)
   },
   ignoreNULL = FALSE
 )
+
 ```
 
 ```{r data_splitting}
@@ -468,12 +473,14 @@ lr_conf_mat_golden <- reactive({
 
 ```
 
+`r h5("FAQs on this dataset, usage agreements, and collection methods courtesy of the Morris Animal Foundation:")`
+[Morris Animal Foundation Website](https://datacommons.morrisanimalfoundation.org/faq)
 
 Validation Summary
 ===========================================================
 
-
-## Column {data-width="500"}
+Column {data-width=350}
+-----------------------------------------------------------------------
 
 ### Data Splitting
 
@@ -489,6 +496,29 @@ Validation Summary
 **Testing Set:**  
 `r reactive(dim(golden_test())[1] %>% scales::comma())`
 
+### Testing Apply Button
+
+```{r, eval = TRUE}
+renderPrint(input$model_variables)
+```
+
+
+## Dataset Information {.tabset}
+
+### Case Imbalance Check
+
+```{r, eval = TRUE}
+output$case_plot <- renderPlot({
+  lr_recipe_golden() %>%
+  prep() %>%
+  juice() %>%
+  ggplot(aes(any, fill = any)) + 
+    geom_bar() +
+    scale_fill_manual(values = wes_palette("Cavalcanti1"))
+})
+
+plotOutput(outputId = "case_plot")
+```
 
 ### Data Viewer
 
@@ -508,25 +538,6 @@ DT::dataTableOutput(outputId = "data_viewer")
 ```
 
 
-Column {data-width=650}
------------------------------------------------------------------------
-
-### Case Imbalance Check
-
-```{r, eval = TRUE}
-output$case_plot <- renderPlot({
-  lr_recipe_golden() %>%
-  prep() %>%
-  juice() %>%
-  ggplot(aes(any, fill = any)) + 
-    geom_bar() +
-    scale_fill_manual(values = wes_palette("Cavalcanti1"))
-})
-
-plotOutput(outputId = "case_plot")
-```
-
-
 Classification Results
 ===========================================================
 
@@ -536,7 +547,7 @@ Classification Results
 output$conf_mat_plot_golden <- renderPlot({
   if (length(golden_filtered()) < 3) {
     plot(1,1,col="white")
-    text(1,1,"You need to select variables for this plot to appear")
+    text(1,1,"You need to select more variables for this plot to appear")
   } else{
   lr_conf_mat_golden() %>%
     autoplot(type = "heatmap") 
@@ -558,7 +569,7 @@ plotOutput(outputId = "conf_mat_plot_golden")
 output$lr_auc_golden <- renderPlot({
    if (length(golden_filtered()) < 3) {
     plot(1,1,col="white")
-    text(1,1,"You need to select variables for this plot to appear")
+    text(1,1,"You need to select more variables for this plot to appear")
   } else{
   lr_tune_golden() %>%
   collect_predictions(parameters = lr_best_golden()) %>%
@@ -590,7 +601,7 @@ Column {data-width=350}
 output$vip_plot <- renderPlot({ 
    if (length(golden_filtered()) < 3) {
     plot(1,1,col="white")
-    text(1,1,"You need to select variables for this plot to appear")
+    text(1,1,"You need to select more variables for this plot to appear")
   } else {
   lr_fit_golden() %>% 
   pull_workflow_fit() %>%
@@ -602,4 +613,40 @@ output$vip_plot <- renderPlot({
 
 plotOutput(outputId = "vip_plot")
 ```
+
+ReadMe for Presentation
+===========================================================
+
+### Talking Points
+
+- A quick look at my site
+- A quick look at Morris's site
+- `topic_add` --> is there a better way. Why did I do this? What kept jamming up my progess?
+- Why isn't the model performing well? Is this expected with somewhat random data?
+- __Questions!__: the point is that I have them and would love to chat!
+  - Do not take up all 10 minutes with this ):<
+- My ideas and frustrations with my dashboard
+  - too many checkboxes
+  - small window, I want to look into zooming or tab-pages
+  - lack of broader organization/no instructions for order of looking
+  - not a lot of context
+
+### Questions I have
+
+- Where is it too cluttered, where is there not enough information?
+- Does anyone have strategies for making things like the categories on the vip axes readable
+- What information is *not* obvious but very important here
+- Does anyone see anything wrong with my recipe?
+- What _would_ you like to see on this dashboard?
+- What _do_ you like on this dashboard?
+- If you were the one reading it to collaborate, would you want the source code to be differently organized or commented more?
+- Shiny widget checkboxes yay or nay?
+- Default plots for no variables selected yay or nay?
+- Is anyone else running into reset button trouble with their plots? Any ideas?
+
+
+
+
+
+
 
