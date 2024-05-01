@@ -28,6 +28,7 @@ library(forcats) # factors
 # Modeling packages
 library(tidymodels) # modelling
 library(vip) # variable importance plots
+library(glmnet)
 
 # Showcasing data packages
 library(ggplot2) # plots
@@ -406,7 +407,8 @@ lr_recipe_golden <- eventReactive(eventExpr = input$apply,
   recipe(any ~ ., data = golden_other()) %>%  
     step_dummy(all_nominal(), -all_outcomes()) %>% 
     step_zv(all_predictors()) %>% 
-    step_normalize(all_predictors())
+    step_normalize(all_predictors()) %>% 
+    step_corr(all_predictors())
                           },
   ignoreNULL = FALSE
   )
@@ -482,6 +484,30 @@ lr_conf_mat_golden <- reactive({
 
 `r h5("FAQs on this dataset, usage agreements, and collection methods courtesy of the Morris Animal Foundation:")`
 [Morris Animal Foundation Website](https://datacommons.morrisanimalfoundation.org/faq)
+
+
+Read Me!
+===========================================================
+
+### Instructions for Use
+
+
+- Why isn't the model performing well? Is this expected with somewhat random data?
+- My ideas and frustrations with my dashboard
+  - too many checkboxes
+  - small window, I want to look into zooming or tab-pages
+  - lack of broader organization/no instructions for order of looking
+  - not a lot of context
+
+### Questions I have
+
+- Where is it too cluttered, where is there not enough information?
+- Does anyone have strategies for making things like the categories on the vip axes readable
+- What information is *not* obvious but very important here
+
+- If you were the one reading it to collaborate, would you want the source code to be differently organized or commented more?
+
+
 
 Validation Summary
 ===========================================================
@@ -621,40 +647,6 @@ output$vip_plot <- renderPlot({
 plotOutput(outputId = "vip_plot")
 ```
 
-ReadMe for Presentation
-===========================================================
-
-### Talking Points
-
-- A quick look at my site
-- A quick look at Morris's site
-- Your presentation should observe the following:
-  - Explain the modeling objective/problem.
-  - Showcase the outcome and predictors.
-  - Describe how you plan to utilize Shiny.
-  - Solicit feedback, be evocative.
-  - Test drive your reactive element.
-- Why isn't the model performing well? Is this expected with somewhat random data?
-- __Questions!__: the point is that I have them and would love to chat!
-- My ideas and frustrations with my dashboard
-  - too many checkboxes
-  - small window, I want to look into zooming or tab-pages
-  - lack of broader organization/no instructions for order of looking
-  - not a lot of context
-- If time: `topic_add` --> is there a better way. Why did I do this? What kept jamming up my progess?
-
-### Questions I have
-
-- Where is it too cluttered, where is there not enough information?
-- Does anyone have strategies for making things like the categories on the vip axes readable
-- What information is *not* obvious but very important here
-- Does anyone see anything wrong with my recipe?
-- What _would_ you like to see on this dashboard?
-- What _do_ you like on this dashboard?
-- If you were the one reading it to collaborate, would you want the source code to be differently organized or commented more?
-- Shiny widget checkboxes yay or nay?
-- Default plots for no variables selected yay or nay?
-- Is anyone else running into reset button trouble with their plots? Any ideas?
 
 
 
