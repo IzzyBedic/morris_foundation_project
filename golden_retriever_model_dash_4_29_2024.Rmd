@@ -4,6 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
+    favicon: images/golden.png
     theme: flatly
     source_code: embed
 runtime: shiny
@@ -13,6 +14,15 @@ resource_files:
 - DO_NOT_UPLOAD_DATA/behavior/behavior_summary.csv
 - DO_NOT_UPLOAD_DATA/environment/environment_conditions.csv
 - DO_NOT_UPLOAD_DATA/conditions_summary.csv
+- images/activity.jpeg
+- images/any.jpeg
+- images/behavior_summary.jpeg
+- images/behavior.jpeg
+- images/dems.jpeg
+- images/environment.jpeg
+- images/golden.png
+- images/REM.JPG
+- images/study.jpeg
 ---
 
 ```{r global, include = FALSE}
@@ -36,6 +46,7 @@ library(flexdashboard)
 library(shiny) # shiny dashboard
 library(DT)
 library(wesanderson)
+library(GGally)
 
 # Helper
 library(shinyjs)
@@ -288,6 +299,19 @@ sliderInput(
 
 br()
 
+sliderInput(
+  inputId = "training_slider",
+  label   = h5("Training Data Proportion"),
+  min     = 0.10,
+  max     = 0.90,
+  value   = 0.75,
+  step    = 0.05,
+  ticks   = FALSE)
+  
+
+br()
+br()
+
 # Letting a use choose which variables to include in the model
 awesomeCheckboxGroup(
   inputId = "model_variables",
@@ -308,14 +332,12 @@ awesomeCheckboxGroup(
   status = wes_palette("Cavalcanti1", 1)
 )
 
-
+br()
 br()
 
 actionButton(inputId = "apply", label = "Apply Changes", icon = icon("play"))
 actionButton(inputId = "reset", label = "Reset", icon = icon("sync"))
 
-br()
-br()
 br()
 
 # there is something wrong with the click(), it is not getting rid of things
@@ -333,11 +355,18 @@ observeEvent(eventExpr = input$reset, handlerExpr = {
     inputId = "model_variables",
     selected = character(0))
   
+  #updates training data proportion
+  updateSliderInput(
+    session = session,
+    inputId = "training_slider",
+    value   = 0.75
+  )
+  
+  
   # makes reset complete
   shinyjs::delay(ms = 300, expr = {
     shinyjs::click("apply")
-    }
-    )
+    })
   
 })
 ```
@@ -368,7 +397,9 @@ set.seed(123)
 splits <- eventReactive(
   eventExpr = input$apply,
   valueExpr = {
-    initial_split(golden_filtered(), strata = any)
+    initial_split(golden_filtered(), 
+                  strata = any,
+                  prop = input$training_slider)
   },
   ignoreNULL = FALSE
 )
@@ -487,33 +518,90 @@ lr_conf_mat_golden <- reactive({
 
 
 Read Me!
-===========================================================
+===============================================================================
+
+
+## Basic Information {.tabset}
+
+### Introduction
+
+Hello! My name is Izzy Bedichek, and this is a shiny dashboard that allows you
+to interact with golden retriever data. The premise of the dashboard is that it
+is a model that is trying to predict the presence of illness in a golden retriever 
+given certain changable parameters.
+<br>
+</br>
+The data that I am using is from the Morris Animal Foundation Data Commons, and,
+according the their website, "[The] Data Commons provides open access to most of the data collected by the Golden Retriever Lifetime Study, covering 11 key subject areas: activity, behavior, dental, disease diagnoses, diet, environment, grooming, geographical locations, medications, physical exams and reproduction. Data is collected annually on each of the approximately 3,000 golden retrievers in the cohort, sourced from both owners and veterinarians."
+<br>
+</br> 
+I have selected and modified--from character to factor; or separated one 
+variable into two, for example--certain variables that I have chosen to put in
+this dashboard. They are marked by check boxes, if you click the check box and hit apply, they will enter the model. As this is a longitudinal data set, you can also use the topmost slider bar to change which year in the study you are selecting data from.
 
 ### Instructions for Use
 
-
-- Why isn't the model performing well? Is this expected with somewhat random data?
-- My ideas and frustrations with my dashboard
-  - too many checkboxes
-  - small window, I want to look into zooming or tab-pages
-  - lack of broader organization/no instructions for order of looking
-  - not a lot of context
-
-### Questions I have
-
-- Where is it too cluttered, where is there not enough information?
-- Does anyone have strategies for making things like the categories on the vip axes readable
-- What information is *not* obvious but very important here
-
-- If you were the one reading it to collaborate, would you want the source code to be differently organized or commented more?
-
-
-
-Validation Summary
-===========================================================
+**Step 1 (Selecting Data):** Go to the left sidebar, slide to the year and check off
+the variables you would like to include in your model. Then hit `Apply`
+<br>
+</br>
+**Step 2 (Model Parameters):** Select the ratio of Training Data : Testing Data for 
+your model.
+<br>
+</br>
+**Step 3 (Looking at the Data):** Go to the `Validation Summary` tab. You can view 
+the exact numbers of golden retrievers in Training, Testing, and Validation. 
+In the right box you can also navigate to three different tabs that display
+various ways of looking at the data. 
+  - The `Case Imbalance Check` tab shows how
+much the outcome (presence of illness, or `any`) is skewed in the sample. 
+  - The `Data Viewer` tab shows you a table with all of the check boxes you have checked so 
+that you can look at the raw data. 
+  - The `Multicollinearity Check via GGpairs` tab shows you a matrix correlation
+table of all of your variables. This works with lots of variables, but can be 
+difficult to take in all at once. I would suggest clicking 2-4 variables at a time
+to look at specific relationships you're interested in for this particular tool.
+<br>
+</br>
+**Step 4 (Viewing the Results):** Go to the `Classification Results` tab back at the 
+top of the page. You will see a Confusion Matrix and ROC AUC curve for your 
+model! 
+  - The Confusion matrix shows you a comparison of which retrievers the model
+thought was sick vs well compared to which retrievers were actually sick or well
+in the testing set.
+  - The ROC AUC shows how _sensitive_ and _specific_ the model was. Sensitive shows 
+the models ability to identify a true positive, and specific shows the model's 
+ability to identify a true negative. Visually, this will look like the model 
+coming off of the linear line in the center to the left. The more curved off 
+of that middle line to the left you see, the better your model performed!
+<br>
+</br>
+**Step 5 (What We Really Want to Know):** At the core of this model is the interest
+and hopes in identifying concrete things that can cause or are related to the 
+presence of illness in retrievers. This can be found in the `Predictor Metrics`
+tab on the `Variable Importance Plot`, which shows us which variables impacted the
+outcome of this model the most. 
+<br>
+</br>
+**Step 6:** Repeat! Toggle around! Ponder! Try selecting different variables, years, 
+and ratios and see how it affects the model. Think about whether this makes sense. 
 
 Column {data-width=350}
------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+### Study Format
+
+<img src="images/study.jpeg" width="350">
+
+### My Dog (not a retriever)
+
+<img src="images/REM.JPG" width="350">
+
+Validation Summary
+================================================================================
+
+Column {data-width=350}
+--------------------------------------------------------------------------------
 
 ### Data Splitting
 
@@ -529,12 +617,9 @@ Column {data-width=350}
 **Testing Set:**  
 `r reactive(dim(golden_test())[1] %>% scales::comma())`
 
-### Testing Apply Button
+### Workflow
 
-```{r, eval = TRUE}
-renderPrint(input$model_variables)
-```
-
+`r renderPrint(lr_workflow_golden())`
 
 ## Dataset Information {.tabset}
 
@@ -570,9 +655,19 @@ golden_filtered() %>%
 DT::dataTableOutput(outputId = "data_viewer")
 ```
 
+### Multicollinearity Check via GGpairs
+
+```{r ggpairs}
+output$ggpairs_plot <- renderPlot({
+  golden_filtered() %>%
+    ggpairs(showStrips = TRUE) 
+})
+
+plotOutput(outputId = "ggpairs_plot")
+```
 
 Classification Results
-===========================================================
+================================================================================
 
 ### Confusion Matrix
 
@@ -625,7 +720,7 @@ renderPrint(lr_tune_golden()
 Predictor Metrics
 ===========================================================
 
-Column {data-width=350}
+Column {data-width=500}
 -----------------------------------------------------------------------
 
 ### Variable Importance Plot
@@ -648,10 +743,33 @@ plotOutput(outputId = "vip_plot")
 ```
 
 
+Data Dictionary
+================================================================================
 
 
+## Variable Categories {.tabset}
 
+### Demographics
 
+<img src="images/dems.jpeg" width="350">
 
+### Any Presence of Illness
 
+<img src="images/any.jpeg" width="350">
+
+### Behavior Score Calculation 
+
+<img src="images/behavior.jpeg" width="350">
+
+### Behavior Summary
+
+<img src="images/behavior_summary.jpeg" width="350">
+
+### Activity
+
+<img src="images/activity.jpeg" width="350">
+
+### Environment
+
+<img src="images/environment.jpeg" width="350">
 
